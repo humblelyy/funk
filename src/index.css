@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { min-height: 100%; background: #0C0C0C; font-family: 'Kanit', sans-serif; }
+html { scroll-behavior: smooth; }
+body { color: #D7E2EA; overflow-x: clip; }
+a { color: inherit; text-decoration: none; }
+.hero-heading { background: linear-gradient(180deg, #646973 0%, #BBCCD7 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+::selection { background: #B600A8; color: white; }
+
+.projects-row { grid-auto-rows: clamp(190px, 15vw, 285px); }
+.project-tile { min-width: 0; }
+.about-copy { white-space: normal; word-spacing: normal; }
+.social-link { display:inline-flex; align-items:center; gap:.55rem; border:1px solid rgba(215,226,234,.2); border-radius:999px; padding:.7rem 1rem; color:#D7E2EA; font-size:.72rem; text-transform:uppercase; letter-spacing:.14em; transition:background .2s ease,border-color .2s ease; }
+.social-link:hover { background:rgba(215,226,234,.08); border-color:rgba(215,226,234,.45); }
+
+@media (max-width: 767px) {
+  .projects-row { display:flex; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+  .projects-row::-webkit-scrollbar { display:none; }
+  .project-tile { flex:0 0 78vw; height:220px; }
+}
+
+
+/* App-style navigation */
+.nav-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:.62rem 1rem; font-size:.68rem; line-height:1; letter-spacing:.14em; text-transform:uppercase; color:rgba(215,226,234,.72); transition:background .25s ease,color .25s ease,transform .25s ease; }
+.nav-pill:hover { background:rgba(255,255,255,.1); color:#fff; transform:translateY(-1px); }
+
+/* Single continuous logo marquee. The duplicated track makes the loop seamless. */
+.marquee-mask { width:100%; overflow:hidden; mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent); -webkit-mask-image:linear-gradient(to right,transparent,#000 7%,#000 93%,transparent); }
+.marquee-track { display:flex; width:max-content; gap:1rem; animation:funk-marquee-right 24s linear infinite; will-change:transform; }
+.marquee-card { display:flex; width:clamp(190px,20vw,300px); height:clamp(150px,15vw,220px); flex:0 0 auto; align-items:center; justify-content:center; border:1px solid rgba(215,226,234,.08); border-radius:28px; background:rgba(255,255,255,.025); padding:1.75rem; }
+.marquee-logo { max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; filter:grayscale(1) invert(1); opacity:.9; transition:opacity .25s ease,transform .25s ease; }
+.marquee-card:hover .marquee-logo { opacity:1; transform:scale(1.06); }
+@keyframes funk-marquee-right { from { transform:translateX(-50%); } to { transform:translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .marquee-track { animation:none; } }
+@media (max-width: 640px) { .nav-pill { padding:.58rem .72rem; font-size:.58rem; letter-spacing:.1em; } .marquee-card { border-radius:22px; padding:1.2rem; } .marquee-track { gap:.75rem; animation-duration:20s; } }
