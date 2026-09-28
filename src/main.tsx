@@ -2520,19 +2520,17 @@ function AdminApp() {
     );
   }
 
-  if (!session) {
-    return (
-      <AdminLogin
-        onLogin={() =>
-          window.location.reload()
-        }
-      />
-    );
-  }
-
+if (!session) {
   return (
-    <AdminDashboard />
+    <AdminLogin
+      onLogin={() =>
+        window.location.reload()
+      }
+    />
   );
+}
+
+return <Admin />;
 }
 
 /* =========================================================
