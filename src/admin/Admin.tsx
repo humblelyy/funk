@@ -4,7 +4,7 @@ import {
   Image as ImageIcon,
   Video,
   Globe,
-  Link as LinkIcon,
+  Link2,
   Trash2,
   ExternalLink,
   RefreshCw,
@@ -14,6 +14,8 @@ import {
   XCircle,
   Loader2,
   Sparkles,
+  Maximize2,
+  Scan,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import "./admin.css";
@@ -42,6 +44,15 @@ type MediaInfo = {
 
 const BUCKET_NAME = "project-media";
 
+const EMPTY_MEDIA: MediaInfo = {
+  file: null,
+  type: "website",
+  width: null,
+  height: null,
+  preview: null,
+  name: "",
+};
+
 export default function Admin() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -51,16 +62,9 @@ export default function Admin() {
   const [dragging, setDragging] = useState(false);
 
   const [title, setTitle] = useState("");
-  const [projectUrl, setProjectUrl] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
 
-  const [media, setMedia] = useState<MediaInfo>({
-    file: null,
-    type: "website",
-    width: null,
-    height: null,
-    preview: null,
-    name: "",
-  });
+  const [media, setMedia] = useState<MediaInfo>(EMPTY_MEDIA);
 
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -72,14 +76,16 @@ export default function Admin() {
   }, []);
 
   async function checkAuth() {
-    const { data } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!data.session) {
+    if (!session) {
       window.location.href = "/admin";
       return;
     }
 
-    loadProjects();
+    await loadProjects();
   }
 
   async function loadProjects() {
@@ -94,21 +100,26 @@ export default function Admin() {
       console.error(error);
       showMessage("error", error.message);
     } else {
-      setProjects(data || []);
+      setProjects((data || []) as Project[]);
     }
 
     setLoadingProjects(false);
   }
 
-  function showMessage(type: "success" | "error", text: string) {
+  function showMessage(
+    type: "success" | "error",
+    text: string
+  ) {
     setMessage({ type, text });
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       setMessage(null);
     }, 5000);
   }
 
-  function detectMediaType(file: File): "image" | "video" | null {
+  function detectMediaType(
+    file: File
+  ): "image" | "video" | null {
     if (file.type.startsWith("image/")) {
       return "image";
     }
@@ -128,44 +139,49 @@ export default function Admin() {
       const objectUrl = URL.createObjectURL(file);
 
       if (type === "image") {
-        const img = new Image();
+        const image = new Image();
 
-        img.onload = () => {
+        image.onload = () => {
           URL.revokeObjectURL(objectUrl);
 
           resolve({
-            width: img.naturalWidth,
-            height: img.naturalHeight,
+            width: image.naturalWidth,
+            height: image.naturalHeight,
           });
         };
 
-        img.onerror = () => {
+        image.onerror = () => {
           URL.revokeObjectURL(objectUrl);
-          reject(new Error("Could not read image dimensions."));
+          reject(
+            new Error("Could not read image dimensions.")
+          );
         };
 
-        img.src = objectUrl;
-      } else {
-        const video = document.createElement("video");
-
-        video.preload = "metadata";
-
-        video.onloadedmetadata = () => {
-          URL.revokeObjectURL(objectUrl);
-
-          resolve({
-            width: video.videoWidth,
-            height: video.videoHeight,
-          });
-        };
-
-        video.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error("Could not read video dimensions."));
-        };
-
-        video.src = objectUrl;
+        image.src = objectUrl;
+        return;
       }
+
+      const video = document.createElement("video");
+
+      video.preload = "metadata";
+
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(objectUrl);
+
+        resolve({
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      };
+
+      video.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(
+          new Error("Could not read video dimensions.")
+        );
+      };
+
+      video.src = objectUrl;
     });
   }
 
@@ -183,7 +199,15 @@ export default function Admin() {
     }
 
     try {
-      const dimensions = await getMediaDimensions(file, type);
+      const dimensions = await getMediaDimensions(
+        file,
+        type
+      );
+
+      if (media.preview) {
+        URL.revokeObjectURL(media.preview);
+      }
+
       const preview = URL.createObjectURL(file);
 
       setMedia({
@@ -194,6 +218,12 @@ export default function Admin() {
         preview,
         name: file.name,
       });
+
+      /*
+       * The uploaded file becomes the project URL after
+       * upload. For now we keep the external URL empty.
+       */
+      setWebsiteUrl("");
     } catch (error) {
       console.error(error);
 
@@ -210,18 +240,51 @@ export default function Admin() {
     const file = event.target.files?.[0];
 
     if (file) {
-      handleFile(file);
+      void handleFile(file);
     }
   }
 
-  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+  function handleDragEnter(
+    event: React.DragEvent<HTMLDivElement>
+  ) {
     event.preventDefault();
+    event.stopPropagation();
+    setDragging(true);
+  }
+
+  function handleDragOver(
+    event: React.DragEvent<HTMLDivElement>
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragging(true);
+  }
+
+  function handleDragLeave(
+    event: React.DragEvent<HTMLDivElement>
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (
+      event.currentTarget === event.target
+    ) {
+      setDragging(false);
+    }
+  }
+
+  function handleDrop(
+    event: React.DragEvent<HTMLDivElement>
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
     setDragging(false);
 
     const file = event.dataTransfer.files?.[0];
 
     if (file) {
-      handleFile(file);
+      void handleFile(file);
     }
   }
 
@@ -230,37 +293,48 @@ export default function Admin() {
       URL.revokeObjectURL(media.preview);
     }
 
-    setMedia({
-      file: null,
-      type: "website",
-      width: null,
-      height: null,
-      preview: null,
-      name: "",
-    });
+    setMedia(EMPTY_MEDIA);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }
 
-  function getAspectRatio() {
-    if (!media.width || !media.height) {
-      return null;
+  function getAspectRatio(
+    width: number | null = media.width,
+    height: number | null = media.height
+  ) {
+    if (!width || !height) {
+      return "—";
     }
 
-    const gcd = (a: number, b: number): number => {
+    function gcd(a: number, b: number): number {
       return b === 0 ? a : gcd(b, a % b);
-    };
+    }
 
-    const divisor = gcd(media.width, media.height);
+    const divisor = gcd(width, height);
 
-    return `${media.width / divisor}:${media.height / divisor}`;
+    return `${width / divisor}:${height / divisor}`;
   }
 
-  async function uploadMedia(): Promise<string | null> {
+  function detectWebsite(url: string): boolean {
+    if (!url.trim()) return false;
+
+    try {
+      const parsed = new URL(url.trim());
+
+      return (
+        parsed.protocol === "http:" ||
+        parsed.protocol === "https:"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async function uploadMedia(): Promise<string> {
     if (!media.file) {
-      return null;
+      throw new Error("No media selected.");
     }
 
     const file = media.file;
@@ -273,15 +347,17 @@ export default function Admin() {
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || "project";
+        .replace(/^-+|-+$/g, "") || "project";
 
-    const uniqueName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(2, 9)}`;
+    const uniqueName =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`;
 
-    const filePath = `${safeTitle}/${uniqueName}.${extension}`;
+    const filePath =
+      `${safeTitle}/${uniqueName}.${extension}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(filePath, file, {
         cacheControl: "3600",
@@ -289,13 +365,19 @@ export default function Admin() {
         contentType: file.type,
       });
 
-    if (uploadError) {
-      throw uploadError;
+    if (error) {
+      throw error;
     }
 
     const { data } = supabase.storage
       .from(BUCKET_NAME)
       .getPublicUrl(filePath);
+
+    if (!data.publicUrl) {
+      throw new Error(
+        "Could not create public media URL."
+      );
+    }
 
     return data.publicUrl;
   }
@@ -304,25 +386,26 @@ export default function Admin() {
     setMessage(null);
 
     if (!title.trim()) {
-      showMessage("error", "Enter a project name.");
-      return;
-    }
-
-    if (!media.file && !projectUrl.trim()) {
       showMessage(
         "error",
-        "Upload an image/video or enter a website URL."
+        "Enter a project name."
       );
       return;
     }
 
-    if (projectUrl.trim()) {
-      try {
-        new URL(projectUrl.trim());
-      } catch {
+    if (!media.file && !websiteUrl.trim()) {
+      showMessage(
+        "error",
+        "Drop an image/video or enter a website URL."
+      );
+      return;
+    }
+
+    if (websiteUrl.trim()) {
+      if (!detectWebsite(websiteUrl)) {
         showMessage(
           "error",
-          "Enter a valid URL starting with https://"
+          "Enter a valid website URL starting with https://"
         );
         return;
       }
@@ -332,23 +415,40 @@ export default function Admin() {
 
     try {
       let mediaUrl: string | null = null;
+      let projectUrl: string | null = null;
+      let finalType: MediaType = "website";
 
       if (media.file) {
+        /*
+         * Upload image/video to Supabase.
+         */
         mediaUrl = await uploadMedia();
+
+        /*
+         * The project card opens the uploaded media.
+         */
+        projectUrl = mediaUrl;
+
+        finalType = media.type;
+      } else {
+        /*
+         * Website project.
+         */
+        projectUrl = websiteUrl.trim();
+        mediaUrl = null;
+        finalType = "website";
       }
 
-      const finalType: MediaType = media.file
-        ? media.type
-        : "website";
-
-      const { error } = await supabase.from("projects").insert({
-        title: title.trim(),
-        type: finalType,
-        media_url: mediaUrl,
-        project_url: projectUrl.trim() || null,
-        width: media.width,
-        height: media.height,
-      });
+      const { error } = await supabase
+        .from("projects")
+        .insert({
+          title: title.trim(),
+          type: finalType,
+          media_url: mediaUrl,
+          project_url: projectUrl,
+          width: media.width,
+          height: media.height,
+        });
 
       if (error) {
         throw error;
@@ -360,7 +460,7 @@ export default function Admin() {
       );
 
       setTitle("");
-      setProjectUrl("");
+      setWebsiteUrl("");
       removeMedia();
 
       await loadProjects();
@@ -369,14 +469,17 @@ export default function Admin() {
 
       showMessage(
         "error",
-        error?.message || "Failed to save project."
+        error?.message ||
+          "Failed to save project."
       );
     } finally {
       setSaving(false);
     }
   }
 
-  async function deleteProject(project: Project) {
+  async function deleteProject(
+    project: Project
+  ) {
     const confirmed = window.confirm(
       `Delete "${project.title}"?`
     );
@@ -398,7 +501,7 @@ export default function Admin() {
       "Project deleted."
     );
 
-    loadProjects();
+    await loadProjects();
   }
 
   async function logout() {
@@ -406,11 +509,14 @@ export default function Admin() {
     window.location.href = "/admin";
   }
 
-  function renderProjectMedia(project: Project) {
+  function renderProjectMedia(
+    project: Project
+  ) {
     if (!project.media_url) {
       return (
         <div className="project-media-placeholder">
-          <Globe size={30} />
+          <Globe size={34} />
+          <span>WEBSITE</span>
         </div>
       );
     }
@@ -420,7 +526,9 @@ export default function Admin() {
         <video
           src={project.media_url}
           muted
+          loop
           playsInline
+          autoPlay
           preload="metadata"
           className="project-media"
         />
@@ -436,9 +544,20 @@ export default function Admin() {
     );
   }
 
+  const currentType: MediaType =
+    media.file
+      ? media.type
+      : websiteUrl.trim()
+        ? "website"
+        : "website";
+
   return (
     <main className="admin-page">
-      <div className="admin-background" />
+      <div className="liquid-orb orb-one" />
+      <div className="liquid-orb orb-two" />
+      <div className="liquid-orb orb-three" />
+
+      <div className="admin-noise" />
 
       <header className="admin-header">
         <div>
@@ -447,32 +566,38 @@ export default function Admin() {
           </div>
 
           <h1>PROJECTS</h1>
+
+          <p className="admin-subtitle">
+            Manage your creative work
+          </p>
         </div>
 
         <div className="admin-actions">
           <button
-            className="glass-button"
+            className="liquid-button"
             onClick={() => {
               window.location.href = "/";
             }}
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft size={16} />
             View site
           </button>
 
           <button
-            className="glass-button"
-            onClick={loadProjects}
+            className="liquid-button"
+            onClick={() => {
+              void loadProjects();
+            }}
           >
-            <RefreshCw size={17} />
+            <RefreshCw size={16} />
             Refresh
           </button>
 
           <button
-            className="glass-button logout-button"
+            className="liquid-button logout-button"
             onClick={logout}
           >
-            <LogOut size={17} />
+            <LogOut size={16} />
             Logout
           </button>
         </div>
@@ -496,74 +621,81 @@ export default function Admin() {
         </div>
       )}
 
-      <section className="glass-card add-project-card">
+      <section className="liquid-card add-project-card">
+        <div className="card-glow" />
+
         <div className="section-heading">
           <div>
-            <div className="heading-icon">
-              <Sparkles size={20} />
+            <div className="heading-top">
+              <div className="heading-icon">
+                <Sparkles size={19} />
+              </div>
+
+              <span className="auto-badge">
+                <Scan size={13} />
+                AUTO DETECTION
+              </span>
             </div>
 
             <h2>Add Project</h2>
 
             <p>
-              Upload media or add a website. Everything else is
-              detected automatically.
+              Drop your media and everything else
+              is detected automatically.
             </p>
           </div>
         </div>
 
-        <div className="form-grid">
-          <div className="field field-full">
+        <div className="project-form">
+          <div className="field">
             <label>Project name</label>
 
             <input
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Cinematic AMV"
+              onChange={(event) =>
+                setTitle(event.target.value)
+              }
+              placeholder="e.g. One Piece AMV"
             />
           </div>
 
-          <div className="field field-full">
-            <label>Project URL</label>
+          <div className="field">
+            <label>
+              Website URL
+              <span>optional</span>
+            </label>
 
-            <div className="input-with-icon">
-              <LinkIcon size={17} />
+            <div className="input-glass">
+              <Link2 size={17} />
 
               <input
-                value={projectUrl}
-                onChange={(e) =>
-                  setProjectUrl(e.target.value)
+                value={websiteUrl}
+                onChange={(event) =>
+                  setWebsiteUrl(event.target.value)
                 }
-                placeholder="https://instagram.com/funk.vfx/"
+                placeholder="https://example.com"
               />
             </div>
 
             <small>
-              This is the URL opened when someone clicks the
-              project.
+              Leave empty when uploading an image
+              or video.
             </small>
           </div>
 
-          <div className="field field-full">
+          <div className="upload-section">
             <label>Media</label>
 
             {!media.file ? (
               <div
-                className={`dropzone ${
-                  dragging ? "dropzone-active" : ""
+                className={`liquid-dropzone ${
+                  dragging
+                    ? "liquid-dropzone-active"
+                    : ""
                 }`}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  setDragging(false);
-                }}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() =>
                   fileInputRef.current?.click()
@@ -577,12 +709,14 @@ export default function Admin() {
                   onChange={handleFileInput}
                 />
 
-                <div className="drop-icon">
-                  <Upload size={25} />
+                <div className="drop-liquid-icon">
+                  <Upload size={26} />
                 </div>
 
                 <strong>
-                  Drag & drop your media here
+                  {dragging
+                    ? "Drop it here"
+                    : "Drag & drop your media"}
                 </strong>
 
                 <span>
@@ -599,11 +733,16 @@ export default function Admin() {
                     <Video size={14} />
                     Video
                   </span>
+
+                  <span>
+                    <Scan size={14} />
+                    Auto detect
+                  </span>
                 </div>
               </div>
             ) : (
-              <div className="media-preview-card">
-                <div className="media-preview">
+              <div className="selected-media">
+                <div className="selected-preview">
                   {media.type === "video" ? (
                     <video
                       src={media.preview || ""}
@@ -614,36 +753,40 @@ export default function Admin() {
                   ) : (
                     <img
                       src={media.preview || ""}
-                      alt="Preview"
+                      alt="Selected media"
                     />
                   )}
                 </div>
 
-                <div className="media-info">
-                  <div className="media-type">
+                <div className="selected-info">
+                  <div className="detected-pill">
                     {media.type === "video" ? (
-                      <Video size={15} />
+                      <Video size={14} />
                     ) : (
-                      <ImageIcon size={15} />
+                      <ImageIcon size={14} />
                     )}
 
-                    {media.type.toUpperCase()}
+                    {media.type}
                   </div>
 
-                  <strong>{media.name}</strong>
+                  <strong>
+                    {media.name}
+                  </strong>
 
-                  <div className="media-meta">
+                  <span>
                     {media.width} × {media.height}
-                    <span>•</span>
+                  </span>
+
+                  <span>
+                    Ratio:{" "}
                     {getAspectRatio()}
-                  </div>
+                  </span>
                 </div>
 
                 <button
                   className="remove-media"
-                  onClick={removeMedia}
                   type="button"
-                  title="Remove media"
+                  onClick={removeMedia}
                 >
                   <Trash2 size={17} />
                 </button>
@@ -651,33 +794,28 @@ export default function Admin() {
             )}
           </div>
 
-          <div className="auto-detect-grid">
-            <div className="auto-box">
+          <div className="detected-grid">
+            <div className="detected-box">
               <span>TYPE</span>
 
               <strong>
-                {media.file ? (
-                  media.type === "video" ? (
-                    <>
-                      <Video size={16} />
-                      Video
-                    </>
-                  ) : (
-                    <>
-                      <ImageIcon size={16} />
-                      Image
-                    </>
-                  )
-                ) : (
-                  <>
-                    <Globe size={16} />
-                    Website
-                  </>
+                {currentType === "video" && (
+                  <Video size={16} />
                 )}
+
+                {currentType === "image" && (
+                  <ImageIcon size={16} />
+                )}
+
+                {currentType === "website" && (
+                  <Globe size={16} />
+                )}
+
+                {currentType.toUpperCase()}
               </strong>
             </div>
 
-            <div className="auto-box">
+            <div className="detected-box">
               <span>WIDTH</span>
 
               <strong>
@@ -687,7 +825,7 @@ export default function Admin() {
               </strong>
             </div>
 
-            <div className="auto-box">
+            <div className="detected-box">
               <span>HEIGHT</span>
 
               <strong>
@@ -697,67 +835,91 @@ export default function Admin() {
               </strong>
             </div>
 
-            <div className="auto-box">
-              <span>RATIO</span>
+            <div className="detected-box">
+              <span>ASPECT RATIO</span>
 
               <strong>
-                {getAspectRatio() || "AUTO"}
+                {getAspectRatio()}
               </strong>
             </div>
           </div>
-        </div>
 
-        <button
-          className="add-project-button"
-          onClick={addProject}
-          disabled={saving}
-        >
-          {saving ? (
-            <>
-              <Loader2
-                size={18}
-                className="spin"
-              />
-              Uploading...
-            </>
-          ) : (
-            <>
-              <Upload size={18} />
-              Add Project
-            </>
+          {media.file && (
+            <div className="upload-note">
+              <Maximize2 size={15} />
+              Dimensions and aspect ratio detected
+              automatically from the original file.
+            </div>
           )}
-        </button>
+
+          {!media.file &&
+            websiteUrl.trim() && (
+              <div className="website-detected">
+                <Globe size={16} />
+                Website detected automatically
+              </div>
+            )}
+
+          <button
+            className="add-project-button"
+            type="button"
+            onClick={() => {
+              void addProject();
+            }}
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <Loader2
+                  size={18}
+                  className="spin"
+                />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload size={18} />
+                Add Project
+              </>
+            )}
+          </button>
+        </div>
       </section>
 
       <section className="projects-section">
         <div className="projects-heading">
           <div>
             <span>YOUR WORK</span>
-            <h2>PROJECTS</h2>
-          </div>
 
-          <div className="project-count">
-            {projects.length}{" "}
-            {projects.length === 1
-              ? "project"
-              : "projects"}
+            <h2>
+              PROJECTS
+              <small>
+                {projects.length}
+              </small>
+            </h2>
           </div>
         </div>
 
         {loadingProjects ? (
-          <div className="glass-card empty-state">
+          <div className="liquid-card empty-state">
             <Loader2
-              size={25}
+              size={27}
               className="spin"
             />
-            <span>Loading projects...</span>
+
+            <span>
+              Loading projects...
+            </span>
           </div>
         ) : projects.length === 0 ? (
-          <div className="glass-card empty-state">
-            <Sparkles size={30} />
+          <div className="liquid-card empty-state">
+            <Sparkles size={34} />
+
             <h3>No projects yet</h3>
+
             <p>
-              Add your first project above.
+              Drop your first image or video
+              above.
             </p>
           </div>
         ) : (
@@ -773,15 +935,15 @@ export default function Admin() {
                   <div className="project-overlay">
                     <span className="type-badge">
                       {project.type === "video" && (
-                        <Video size={14} />
+                        <Video size={13} />
                       )}
 
                       {project.type === "image" && (
-                        <ImageIcon size={14} />
+                        <ImageIcon size={13} />
                       )}
 
                       {project.type === "website" && (
-                        <Globe size={14} />
+                        <Globe size={13} />
                       )}
 
                       {project.type}
@@ -793,8 +955,9 @@ export default function Admin() {
                         target="_blank"
                         rel="noreferrer"
                         className="open-project"
+                        title="Open project"
                       >
-                        <ExternalLink size={16} />
+                        <ExternalLink size={15} />
                       </a>
                     )}
                   </div>
@@ -802,23 +965,32 @@ export default function Admin() {
 
                 <div className="project-details">
                   <div>
-                    <h3>{project.title}</h3>
+                    <h3>
+                      {project.title}
+                    </h3>
 
                     {project.width &&
                       project.height && (
                         <span>
                           {project.width} ×{" "}
                           {project.height}
+                          {" • "}
+                          {getAspectRatio(
+                            project.width,
+                            project.height
+                          )}
                         </span>
                       )}
                   </div>
 
                   <button
                     className="delete-button"
-                    onClick={() =>
-                      deleteProject(project)
-                    }
-                    title="Delete project"
+                    type="button"
+                    onClick={() => {
+                      void deleteProject(
+                        project
+                      );
+                    }}
                   >
                     <Trash2 size={16} />
                   </button>
