@@ -1,1574 +1,833 @@
+import { useEffect, useRef, useState } from "react";
 import {
-  useEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type FormEvent,
-} from "react";
-
+  Upload,
+  Image as ImageIcon,
+  Video,
+  Globe,
+  Link as LinkIcon,
+  Trash2,
+  ExternalLink,
+  RefreshCw,
+  LogOut,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import "./admin.css";
 
 type MediaType = "image" | "video" | "website";
 
 type Project = {
-  id: number;
-  title: string | null;
-  media_url: string | null;
-  media_type: string | null;
-  destination_url: string | null;
-  width: number | null;
-  height: number | null;
-  created_at: string;
-};
-
-type ProjectForm = {
+  id: string;
   title: string;
-  media_url: string;
-  media_type: MediaType;
-  destination_url: string;
+  type: MediaType;
+  media_url: string | null;
+  project_url: string | null;
   width: number | null;
   height: number | null;
+  created_at?: string;
 };
 
-const STORAGE_BUCKET = "project-media";
-
-const EMPTY_FORM: ProjectForm = {
-  title: "",
-  media_url: "",
-  media_type: "image",
-  destination_url: "https://www.instagram.com/funk.vfx/",
-  width: null,
-  height: null,
+type MediaInfo = {
+  file: File | null;
+  type: MediaType;
+  width: number | null;
+  height: number | null;
+  preview: string | null;
+  name: string;
 };
+
+const BUCKET_NAME = "project-media";
 
 export default function Admin() {
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [title, setTitle] = useState("");
+  const [projectUrl, setProjectUrl] = useState("");
 
-  const [form, setForm] =
-    useState<ProjectForm>(EMPTY_FORM);
+  const [media, setMedia] = useState<MediaInfo>({
+    file: null,
+    type: "website",
+    width: null,
+    height: null,
+    preview: null,
+    name: "",
+  });
 
-  const [saving, setSaving] =
-    useState(false);
-
-  const [message, setMessage] =
-    useState("");
-
-  const [email, setEmail] =
-    useState("");
-
-  const [password, setPassword] =
-    useState("");
-
-  const [loginLoading, setLoginLoading] =
-    useState(false);
-
-  const [loginError, setLoginError] =
-    useState("");
-
-  const [dragActive, setDragActive] =
-    useState(false);
-
-  const [uploading, setUploading] =
-    useState(false);
-
-  const [selectedFile, setSelectedFile] =
-    useState<File | null>(null);
-
-  const fileInputRef =
-    useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
-    checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        setSession(newSession);
-
-        if (newSession) {
-          loadProjects();
-        } else {
-          setProjects([]);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    checkAuth();
   }, []);
 
-  async function checkSession() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  async function checkAuth() {
+    const { data } = await supabase.auth.getSession();
 
-    setSession(session);
-
-    if (session) {
-      await loadProjects();
-    }
-
-    setLoading(false);
-  }
-
-  async function login(event: FormEvent) {
-    event.preventDefault();
-
-    setLoginLoading(true);
-    setLoginError("");
-
-    const { error } =
-      await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-    if (error) {
-      setLoginError(error.message);
-    }
-
-    setLoginLoading(false);
-  }
-
-  async function logout() {
-    await supabase.auth.signOut();
-
-    setProjects([]);
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-    setSelectedFile(null);
-  }
-
-  async function loadProjects() {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("projects")
-      .select(
-        "id,title,media_url,media_type,destination_url,width,height,created_at"
-      )
-      .order("created_at", {
-        ascending: false,
-      });
-
-    if (error) {
-      setMessage(
-        `Database error: ${error.message}`
-      );
+    if (!data.session) {
+      window.location.href = "/admin";
       return;
     }
 
-    setProjects(
-      (data || []) as Project[]
-    );
+    loadProjects();
   }
 
-  function resetForm() {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-    setSelectedFile(null);
-    setMessage("");
+  async function loadProjects() {
+    setLoadingProjects(true);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      showMessage("error", error.message);
+    } else {
+      setProjects(data || []);
     }
+
+    setLoadingProjects(false);
   }
 
-  function editProject(project: Project) {
-    setEditingId(project.id);
+  function showMessage(type: "success" | "error", text: string) {
+    setMessage({ type, text });
 
-    setForm({
-      title: project.title || "",
-      media_url: project.media_url || "",
-      media_type:
-        (project.media_type as MediaType) ||
-        "image",
-      destination_url:
-        project.destination_url || "",
-      width: project.width || null,
-      height: project.height || null,
-    });
-
-    setSelectedFile(null);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    setTimeout(() => {
+      setMessage(null);
+    }, 5000);
   }
 
-  function detectMediaType(
-    file: File
-  ): MediaType {
+  function detectMediaType(file: File): "image" | "video" | null {
+    if (file.type.startsWith("image/")) {
+      return "image";
+    }
+
     if (file.type.startsWith("video/")) {
       return "video";
     }
 
-    return "image";
+    return null;
   }
 
-  function detectDimensions(
-    file: File
-  ): Promise<{
-    width: number;
-    height: number;
-  }> {
-    return new Promise(
-      (resolve, reject) => {
-        const objectUrl =
-          URL.createObjectURL(file);
+  async function getMediaDimensions(
+    file: File,
+    type: "image" | "video"
+  ): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
 
-        if (file.type.startsWith("image/")) {
-          const image =
-            new Image();
+      if (type === "image") {
+        const img = new Image();
 
-          image.onload = () => {
-            URL.revokeObjectURL(
-              objectUrl
-            );
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
 
-            resolve({
-              width:
-                image.naturalWidth,
-              height:
-                image.naturalHeight,
-            });
-          };
+          resolve({
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          });
+        };
 
-          image.onerror = () => {
-            URL.revokeObjectURL(
-              objectUrl
-            );
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("Could not read image dimensions."));
+        };
 
-            reject(
-              new Error(
-                "Unable to read image dimensions."
-              )
-            );
-          };
+        img.src = objectUrl;
+      } else {
+        const video = document.createElement("video");
 
-          image.src = objectUrl;
-          return;
-        }
+        video.preload = "metadata";
 
-        if (file.type.startsWith("video/")) {
-          const video =
-            document.createElement(
-              "video"
-            );
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(objectUrl);
 
-          video.preload = "metadata";
+          resolve({
+            width: video.videoWidth,
+            height: video.videoHeight,
+          });
+        };
 
-          video.onloadedmetadata =
-            () => {
-              URL.revokeObjectURL(
-                objectUrl
-              );
+        video.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("Could not read video dimensions."));
+        };
 
-              resolve({
-                width:
-                  video.videoWidth,
-                height:
-                  video.videoHeight,
-              });
-            };
-
-          video.onerror = () => {
-            URL.revokeObjectURL(
-              objectUrl
-            );
-
-            reject(
-              new Error(
-                "Unable to read video dimensions."
-              )
-            );
-          };
-
-          video.src = objectUrl;
-          return;
-        }
-
-        URL.revokeObjectURL(
-          objectUrl
-        );
-
-        reject(
-          new Error(
-            "Unsupported media type."
-          )
-        );
+        video.src = objectUrl;
       }
-    );
+    });
   }
 
-  async function handleFile(
-    file: File
-  ) {
-    setMessage("");
+  async function handleFile(file: File) {
+    setMessage(null);
 
-    if (
-      !file.type.startsWith("image/") &&
-      !file.type.startsWith("video/")
-    ) {
-      setMessage(
-        "Please drop an image or video file."
+    const type = detectMediaType(file);
+
+    if (!type) {
+      showMessage(
+        "error",
+        "Only image and video files are supported."
       );
       return;
     }
-
-    const maxSize =
-      100 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      setMessage(
-        "File is too large. Maximum size is 100 MB."
-      );
-      return;
-    }
-
-    setSelectedFile(file);
 
     try {
-      const mediaType =
-        detectMediaType(file);
+      const dimensions = await getMediaDimensions(file, type);
+      const preview = URL.createObjectURL(file);
 
-      const dimensions =
-        await detectDimensions(file);
-
-      setForm((current) => ({
-        ...current,
-        media_type: mediaType,
+      setMedia({
+        file,
+        type,
         width: dimensions.width,
         height: dimensions.height,
-      }));
-
-      setMessage(
-        `Detected ${dimensions.width} × ${dimensions.height} — ${mediaType}.`
-      );
+        preview,
+        name: file.name,
+      });
     } catch (error) {
       console.error(error);
 
-      setSelectedFile(null);
-
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not read the file."
+      showMessage(
+        "error",
+        "Could not read the selected media."
       );
-    }
-  }
-
-  function handleDragOver(
-    event: DragEvent<HTMLDivElement>
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    setDragActive(true);
-  }
-
-  function handleDragLeave(
-    event: DragEvent<HTMLDivElement>
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    setDragActive(false);
-  }
-
-  function handleDrop(
-    event: DragEvent<HTMLDivElement>
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    setDragActive(false);
-
-    const file =
-      event.dataTransfer.files?.[0];
-
-    if (file) {
-      handleFile(file);
     }
   }
 
   function handleFileInput(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const file =
-      event.target.files?.[0];
+    const file = event.target.files?.[0];
 
     if (file) {
       handleFile(file);
     }
   }
 
-  async function uploadFile(
-    file: File
-  ): Promise<string> {
-    if (!session?.user?.id) {
-      throw new Error(
-        "You must be logged in before uploading."
-      );
-    }
-
-    setUploading(true);
-
-    try {
-      const extension =
-        file.name.includes(".")
-          ? file.name
-              .split(".")
-              .pop()
-              ?.toLowerCase()
-          : "bin";
-
-      const safeName =
-        file.name
-          .replace(
-            /[^a-zA-Z0-9._-]/g,
-            "-"
-          )
-          .replace(
-            /-+/g,
-            "-"
-          );
-
-      const filePath =
-        `${session.user.id}/${Date.now()}-${safeName || `media.${extension}`}`;
-
-      const {
-        error,
-      } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(
-          filePath,
-          file,
-          {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: file.type,
-          }
-        );
-
-      if (error) {
-        throw new Error(
-          `Storage upload failed: ${error.message}`
-        );
-      }
-
-      const {
-        data,
-      } = supabase.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(filePath);
-
-      if (!data.publicUrl) {
-        throw new Error(
-          "Supabase uploaded the file but did not return a public URL."
-        );
-      }
-
-      return data.publicUrl;
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function detectUrlDimensions(
-    url: string,
-    mediaType: MediaType
-  ) {
-    if (!url) return;
-
-    if (mediaType === "website") {
-      setForm((current) => ({
-        ...current,
-        width:
-          current.width || 1920,
-        height:
-          current.height || 1080,
-      }));
-
-      return;
-    }
-
-    try {
-      if (mediaType === "image") {
-        const image =
-          new Image();
-
-        image.onload = () => {
-          setForm((current) => ({
-            ...current,
-            width:
-              image.naturalWidth,
-            height:
-              image.naturalHeight,
-          }));
-
-          setMessage(
-            `Automatic ratio detected: ${image.naturalWidth} × ${image.naturalHeight}`
-          );
-        };
-
-        image.onerror = () => {
-          setMessage(
-            "URL saved, but automatic image dimensions could not be detected."
-          );
-        };
-
-        image.src = url;
-      }
-
-      if (mediaType === "video") {
-        const video =
-          document.createElement(
-            "video"
-          );
-
-        video.preload = "metadata";
-
-        video.onloadedmetadata =
-          () => {
-            setForm((current) => ({
-              ...current,
-              width:
-                video.videoWidth,
-              height:
-                video.videoHeight,
-            }));
-
-            setMessage(
-              `Automatic ratio detected: ${video.videoWidth} × ${video.videoHeight}`
-            );
-          };
-
-        video.onerror = () => {
-          setMessage(
-            "URL saved, but automatic video dimensions could not be detected."
-          );
-        };
-
-        video.src = url;
-      }
-    } catch {
-      // URL dimensions are optional.
-    }
-  }
-
-  async function saveProject(
-    event: FormEvent
-  ) {
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
+    setDragging(false);
 
-    if (!form.title.trim()) {
-      setMessage(
-        "Project title is required."
+    const file = event.dataTransfer.files?.[0];
+
+    if (file) {
+      handleFile(file);
+    }
+  }
+
+  function removeMedia() {
+    if (media.preview) {
+      URL.revokeObjectURL(media.preview);
+    }
+
+    setMedia({
+      file: null,
+      type: "website",
+      width: null,
+      height: null,
+      preview: null,
+      name: "",
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function getAspectRatio() {
+    if (!media.width || !media.height) {
+      return null;
+    }
+
+    const gcd = (a: number, b: number): number => {
+      return b === 0 ? a : gcd(b, a % b);
+    };
+
+    const divisor = gcd(media.width, media.height);
+
+    return `${media.width / divisor}:${media.height / divisor}`;
+  }
+
+  async function uploadMedia(): Promise<string | null> {
+    if (!media.file) {
+      return null;
+    }
+
+    const file = media.file;
+
+    const extension =
+      file.name.split(".").pop()?.toLowerCase() || "bin";
+
+    const safeTitle =
+      title
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "project";
+
+    const uniqueName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+
+    const filePath = `${safeTitle}/${uniqueName}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  }
+
+  async function addProject() {
+    setMessage(null);
+
+    if (!title.trim()) {
+      showMessage("error", "Enter a project name.");
+      return;
+    }
+
+    if (!media.file && !projectUrl.trim()) {
+      showMessage(
+        "error",
+        "Upload an image/video or enter a website URL."
       );
       return;
     }
 
-    if (
-      form.media_type !==
-        "website" &&
-      !form.media_url.trim() &&
-      !selectedFile
-    ) {
-      setMessage(
-        "Drop a media file or enter a media URL."
-      );
-      return;
-    }
-
-    if (
-      form.media_type === "website" &&
-      !form.media_url.trim()
-    ) {
-      setMessage(
-        "Website URL is required."
-      );
-      return;
+    if (projectUrl.trim()) {
+      try {
+        new URL(projectUrl.trim());
+      } catch {
+        showMessage(
+          "error",
+          "Enter a valid URL starting with https://"
+        );
+        return;
+      }
     }
 
     setSaving(true);
-    setMessage("");
 
     try {
-      let mediaUrl =
-        form.media_url.trim();
+      let mediaUrl: string | null = null;
 
-      let width = form.width;
-      let height = form.height;
-      let mediaType =
-        form.media_type;
-
-      // Upload newly selected file.
-      if (selectedFile) {
-        mediaUrl =
-          await uploadFile(
-            selectedFile
-          );
-
-        mediaType =
-          detectMediaType(
-            selectedFile
-          );
-
-        const dimensions =
-          await detectDimensions(
-            selectedFile
-          );
-
-        width =
-          dimensions.width;
-
-        height =
-          dimensions.height;
+      if (media.file) {
+        mediaUrl = await uploadMedia();
       }
 
-      if (
-        !width ||
-        !height
-      ) {
-        width = 1920;
-        height = 1080;
+      const finalType: MediaType = media.file
+        ? media.type
+        : "website";
+
+      const { error } = await supabase.from("projects").insert({
+        title: title.trim(),
+        type: finalType,
+        media_url: mediaUrl,
+        project_url: projectUrl.trim() || null,
+        width: media.width,
+        height: media.height,
+      });
+
+      if (error) {
+        throw error;
       }
 
-      const payload = {
-        title:
-          form.title.trim(),
-
-        media_url:
-          mediaUrl || null,
-
-        media_type:
-          mediaType,
-
-        destination_url:
-          form.destination_url.trim() ||
-          null,
-
-        width: Number(width),
-
-        height: Number(height),
-      };
-
-      if (editingId !== null) {
-        const {
-          error,
-        } = await supabase
-          .from("projects")
-          .update(payload)
-          .eq(
-            "id",
-            editingId
-          );
-
-        if (error) {
-          throw new Error(
-            `Database update failed: ${error.message}`
-          );
-        }
-
-        setMessage(
-          "Project updated successfully."
-        );
-      } else {
-        const {
-          error,
-        } = await supabase
-          .from("projects")
-          .insert(payload);
-
-        if (error) {
-          throw new Error(
-            `Database insert failed: ${error.message}`
-          );
-        }
-
-        setMessage(
-          "Project added successfully."
-        );
-      }
-
-      await loadProjects();
-
-      setEditingId(null);
-      setForm(EMPTY_FORM);
-      setSelectedFile(null);
-
-      if (
-        fileInputRef.current
-      ) {
-        fileInputRef.current.value =
-          "";
-      }
-    } catch (error) {
-      console.error(
-        "FUNK Admin save error:",
-        error
+      showMessage(
+        "success",
+        "Project added successfully."
       );
 
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to save project."
+      setTitle("");
+      setProjectUrl("");
+      removeMedia();
+
+      await loadProjects();
+    } catch (error: any) {
+      console.error(error);
+
+      showMessage(
+        "error",
+        error?.message || "Failed to save project."
       );
     } finally {
       setSaving(false);
     }
   }
 
-  async function deleteProject(
-    id: number
-  ) {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this project?"
-      );
+  async function deleteProject(project: Project) {
+    const confirmed = window.confirm(
+      `Delete "${project.title}"?`
+    );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
-    setMessage("");
-
-    const {
-      error,
-    } = await supabase
+    const { error } = await supabase
       .from("projects")
       .delete()
-      .eq("id", id);
+      .eq("id", project.id);
 
     if (error) {
-      setMessage(
-        `Delete failed: ${error.message}`
-      );
+      showMessage("error", error.message);
       return;
     }
 
-    setMessage(
+    showMessage(
+      "success",
       "Project deleted."
     );
 
-    await loadProjects();
+    loadProjects();
   }
 
-  if (loading) {
-    return (
-      <div className="admin-loading">
-        <div className="admin-spinner" />
-        <span>
-          Loading FUNK Admin...
-        </span>
-      </div>
-    );
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/admin";
   }
 
-  if (!session) {
+  function renderProjectMedia(project: Project) {
+    if (!project.media_url) {
+      return (
+        <div className="project-media-placeholder">
+          <Globe size={30} />
+        </div>
+      );
+    }
+
+    if (project.type === "video") {
+      return (
+        <video
+          src={project.media_url}
+          muted
+          playsInline
+          preload="metadata"
+          className="project-media"
+        />
+      );
+    }
+
     return (
-      <div className="admin-login-page">
-        <div className="admin-login-glow" />
-
-        <form
-          className="admin-login-card"
-          onSubmit={login}
-        >
-          <div className="admin-brand">
-            <span className="admin-brand-dot" />
-            FUNK
-          </div>
-
-          <div className="admin-login-label">
-            PRIVATE AREA
-          </div>
-
-          <h1>
-            Admin Login
-          </h1>
-
-          <p>
-            Sign in to manage your FUNK
-            portfolio projects.
-          </p>
-
-          {loginError && (
-            <div className="admin-error">
-              {loginError}
-            </div>
-          )}
-
-          <label>
-            Email
-
-            <input
-              type="email"
-              value={email}
-              onChange={(event) =>
-                setEmail(
-                  event.target.value
-                )
-              }
-              placeholder="admin@example.com"
-              required
-            />
-          </label>
-
-          <label>
-            Password
-
-            <input
-              type="password"
-              value={password}
-              onChange={(event) =>
-                setPassword(
-                  event.target.value
-                )
-              }
-              placeholder="••••••••"
-              required
-            />
-          </label>
-
-          <button
-            className="admin-primary-button"
-            type="submit"
-            disabled={loginLoading}
-          >
-            {loginLoading
-              ? "SIGNING IN..."
-              : "SIGN IN ↗"}
-          </button>
-
-          <a
-            className="back-home"
-            href="/"
-          >
-            ← Back to portfolio
-          </a>
-        </form>
-      </div>
+      <img
+        src={project.media_url}
+        alt={project.title}
+        className="project-media"
+      />
     );
   }
 
   return (
-    <div className="admin-page">
+    <main className="admin-page">
+      <div className="admin-background" />
+
       <header className="admin-header">
         <div>
-          <div className="admin-brand">
-            <span className="admin-brand-dot" />
-            FUNK
+          <div className="admin-kicker">
+            FUNK / ADMIN
           </div>
 
-          <span className="admin-subtitle">
-            PORTFOLIO ADMIN
-          </span>
+          <h1>PROJECTS</h1>
         </div>
 
-        <div className="admin-header-actions">
-          <a
-            href="/"
-            className="admin-view-button"
+        <div className="admin-actions">
+          <button
+            className="glass-button"
+            onClick={() => {
+              window.location.href = "/";
+            }}
           >
-            VIEW SITE ↗
-          </a>
+            <ArrowLeft size={17} />
+            View site
+          </button>
 
           <button
-            className="admin-logout-button"
-            onClick={logout}
-            type="button"
+            className="glass-button"
+            onClick={loadProjects}
           >
-            LOG OUT
+            <RefreshCw size={17} />
+            Refresh
+          </button>
+
+          <button
+            className="glass-button logout-button"
+            onClick={logout}
+          >
+            <LogOut size={17} />
+            Logout
           </button>
         </div>
       </header>
 
-      <main className="admin-container">
-        <section className="admin-intro">
-          <div>
-            <span className="admin-kicker">
-              CONTROL CENTER
-            </span>
+      {message && (
+        <div
+          className={`admin-message ${
+            message.type === "success"
+              ? "message-success"
+              : "message-error"
+          }`}
+        >
+          {message.type === "success" ? (
+            <CheckCircle2 size={18} />
+          ) : (
+            <XCircle size={18} />
+          )}
 
-            <h1>
-              Manage Projects
-            </h1>
+          <span>{message.text}</span>
+        </div>
+      )}
+
+      <section className="glass-card add-project-card">
+        <div className="section-heading">
+          <div>
+            <div className="heading-icon">
+              <Sparkles size={20} />
+            </div>
+
+            <h2>Add Project</h2>
 
             <p>
-              Add, edit and remove projects
-              from your public FUNK portfolio.
+              Upload media or add a website. Everything else is
+              detected automatically.
             </p>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <div className="field field-full">
+            <label>Project name</label>
+
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Cinematic AMV"
+            />
+          </div>
+
+          <div className="field field-full">
+            <label>Project URL</label>
+
+            <div className="input-with-icon">
+              <LinkIcon size={17} />
+
+              <input
+                value={projectUrl}
+                onChange={(e) =>
+                  setProjectUrl(e.target.value)
+                }
+                placeholder="https://instagram.com/funk.vfx/"
+              />
+            </div>
+
+            <small>
+              This is the URL opened when someone clicks the
+              project.
+            </small>
+          </div>
+
+          <div className="field field-full">
+            <label>Media</label>
+
+            {!media.file ? (
+              <div
+                className={`dropzone ${
+                  dragging ? "dropzone-active" : ""
+                }`}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                }}
+                onDrop={handleDrop}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  hidden
+                  onChange={handleFileInput}
+                />
+
+                <div className="drop-icon">
+                  <Upload size={25} />
+                </div>
+
+                <strong>
+                  Drag & drop your media here
+                </strong>
+
+                <span>
+                  or click to browse
+                </span>
+
+                <div className="supported-types">
+                  <span>
+                    <ImageIcon size={14} />
+                    Image
+                  </span>
+
+                  <span>
+                    <Video size={14} />
+                    Video
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="media-preview-card">
+                <div className="media-preview">
+                  {media.type === "video" ? (
+                    <video
+                      src={media.preview || ""}
+                      controls
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={media.preview || ""}
+                      alt="Preview"
+                    />
+                  )}
+                </div>
+
+                <div className="media-info">
+                  <div className="media-type">
+                    {media.type === "video" ? (
+                      <Video size={15} />
+                    ) : (
+                      <ImageIcon size={15} />
+                    )}
+
+                    {media.type.toUpperCase()}
+                  </div>
+
+                  <strong>{media.name}</strong>
+
+                  <div className="media-meta">
+                    {media.width} × {media.height}
+                    <span>•</span>
+                    {getAspectRatio()}
+                  </div>
+                </div>
+
+                <button
+                  className="remove-media"
+                  onClick={removeMedia}
+                  type="button"
+                  title="Remove media"
+                >
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="auto-detect-grid">
+            <div className="auto-box">
+              <span>TYPE</span>
+
+              <strong>
+                {media.file ? (
+                  media.type === "video" ? (
+                    <>
+                      <Video size={16} />
+                      Video
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon size={16} />
+                      Image
+                    </>
+                  )
+                ) : (
+                  <>
+                    <Globe size={16} />
+                    Website
+                  </>
+                )}
+              </strong>
+            </div>
+
+            <div className="auto-box">
+              <span>WIDTH</span>
+
+              <strong>
+                {media.width
+                  ? `${media.width}px`
+                  : "AUTO"}
+              </strong>
+            </div>
+
+            <div className="auto-box">
+              <span>HEIGHT</span>
+
+              <strong>
+                {media.height
+                  ? `${media.height}px`
+                  : "AUTO"}
+              </strong>
+            </div>
+
+            <div className="auto-box">
+              <span>RATIO</span>
+
+              <strong>
+                {getAspectRatio() || "AUTO"}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <button
+          className="add-project-button"
+          onClick={addProject}
+          disabled={saving}
+        >
+          {saving ? (
+            <>
+              <Loader2
+                size={18}
+                className="spin"
+              />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload size={18} />
+              Add Project
+            </>
+          )}
+        </button>
+      </section>
+
+      <section className="projects-section">
+        <div className="projects-heading">
+          <div>
+            <span>YOUR WORK</span>
+            <h2>PROJECTS</h2>
           </div>
 
           <div className="project-count">
-            <strong>
-              {projects.length}
-            </strong>
-
-            <span>
-              PROJECTS
-            </span>
+            {projects.length}{" "}
+            {projects.length === 1
+              ? "project"
+              : "projects"}
           </div>
-        </section>
+        </div>
 
-        <section className="admin-editor">
-          <div className="editor-heading">
-            <div>
-              <span className="admin-kicker">
-                {editingId
-                  ? "EDIT PROJECT"
-                  : "NEW PROJECT"}
-              </span>
-
-              <h2>
-                {editingId
-                  ? "Update project"
-                  : "Add a project"}
-              </h2>
-            </div>
-
-            {editingId && (
-              <button
-                className="cancel-button"
-                onClick={resetForm}
-                type="button"
+        {loadingProjects ? (
+          <div className="glass-card empty-state">
+            <Loader2
+              size={25}
+              className="spin"
+            />
+            <span>Loading projects...</span>
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="glass-card empty-state">
+            <Sparkles size={30} />
+            <h3>No projects yet</h3>
+            <p>
+              Add your first project above.
+            </p>
+          </div>
+        ) : (
+          <div className="projects-grid">
+            {projects.map((project) => (
+              <article
+                className="project-card"
+                key={project.id}
               >
-                CANCEL
-              </button>
-            )}
-          </div>
+                <div className="project-image-wrapper">
+                  {renderProjectMedia(project)}
 
-          <form
-            onSubmit={saveProject}
-          >
-            <div className="form-grid">
-              <label>
-                Project title
+                  <div className="project-overlay">
+                    <span className="type-badge">
+                      {project.type === "video" && (
+                        <Video size={14} />
+                      )}
 
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      title:
-                        event.target.value,
-                    })
-                  }
-                  placeholder="FUNK Portfolio"
-                  required
-                />
-              </label>
+                      {project.type === "image" && (
+                        <ImageIcon size={14} />
+                      )}
 
-              <label>
-                Media type
+                      {project.type === "website" && (
+                        <Globe size={14} />
+                      )}
 
-                <select
-                  value={form.media_type}
-                  onChange={(event) => {
-                    const type =
-                      event.target
-                        .value as MediaType;
+                      {project.type}
+                    </span>
 
-                    setForm({
-                      ...form,
-                      media_type:
-                        type,
-                    });
-
-                    if (
-                      type ===
-                      "website"
-                    ) {
-                      setSelectedFile(
-                        null
-                      );
-                    }
-                  }}
-                >
-                  <option value="image">
-                    Image
-                  </option>
-
-                  <option value="video">
-                    Video
-                  </option>
-
-                  <option value="website">
-                    Website
-                  </option>
-                </select>
-              </label>
-
-              {form.media_type !==
-                "website" && (
-                <div
-                  className="full-field"
-                  style={{
-                    marginTop: 8,
-                  }}
-                >
-                  <div
-                    onDragOver={
-                      handleDragOver
-                    }
-                    onDragEnter={
-                      handleDragOver
-                    }
-                    onDragLeave={
-                      handleDragLeave
-                    }
-                    onDrop={
-                      handleDrop
-                    }
-                    onClick={() =>
-                      fileInputRef.current?.click()
-                    }
-                    style={{
-                      minHeight:
-                        190,
-                      border:
-                        dragActive
-                          ? "2px solid #fff"
-                          : "2px dashed rgba(255,255,255,.22)",
-                      borderRadius:
-                        18,
-                      background:
-                        dragActive
-                          ? "rgba(255,255,255,.09)"
-                          : "rgba(255,255,255,.035)",
-                      display:
-                        "flex",
-                      alignItems:
-                        "center",
-                      justifyContent:
-                        "center",
-                      textAlign:
-                        "center",
-                      cursor:
-                        "pointer",
-                      transition:
-                        "all .2s ease",
-                      padding:
-                        25,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize:
-                            34,
-                          marginBottom:
-                            10,
-                        }}
+                    {project.project_url && (
+                      <a
+                        href={project.project_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="open-project"
                       >
-                        {selectedFile
-                          ? "✓"
-                          : "↑"}
-                      </div>
-
-                      <strong
-                        style={{
-                          display:
-                            "block",
-                          fontSize:
-                            16,
-                        }}
-                      >
-                        {selectedFile
-                          ? selectedFile.name
-                          : "Drag & drop your media here"}
-                      </strong>
-
-                      <span
-                        style={{
-                          display:
-                            "block",
-                          marginTop:
-                            8,
-                          opacity:
-                            0.55,
-                          fontSize:
-                            13,
-                        }}
-                      >
-                        {selectedFile
-                          ? `${form.width} × ${form.height} • ${form.media_type}`
-                          : "or click to choose an image/video"}
-                      </span>
-
-                      <span
-                        style={{
-                          display:
-                            "block",
-                          marginTop:
-                            6,
-                          opacity:
-                            0.35,
-                          fontSize:
-                            11,
-                        }}
-                      >
-                        Maximum 100 MB
-                      </span>
-                    </div>
-
-                    <input
-                      ref={
-                        fileInputRef
-                      }
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={
-                        handleFileInput
-                      }
-                      style={{
-                        display:
-                          "none",
-                      }}
-                    />
+                        <ExternalLink size={16} />
+                      </a>
+                    )}
                   </div>
-
-                  {selectedFile && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedFile(
-                          null
-                        );
-
-                        setForm(
-                          (
-                            current
-                          ) => ({
-                            ...current,
-                            width:
-                              null,
-                            height:
-                              null,
-                          })
-                        );
-
-                        if (
-                          fileInputRef.current
-                        ) {
-                          fileInputRef.current.value =
-                            "";
-                        }
-                      }}
-                      style={{
-                        marginTop:
-                          10,
-                        background:
-                          "transparent",
-                        border:
-                          "1px solid rgba(255,255,255,.15)",
-                        color:
-                          "#fff",
-                        borderRadius:
-                          10,
-                        padding:
-                          "8px 12px",
-                        cursor:
-                          "pointer",
-                      }}
-                    >
-                      Remove selected file
-                    </button>
-                  )}
                 </div>
-              )}
 
-              <label className="full-field">
-                {form.media_type ===
-                "website"
-                  ? "Website URL"
-                  : "Media URL (optional)"}
+                <div className="project-details">
+                  <div>
+                    <h3>{project.title}</h3>
 
-                <input
-                  type="url"
-                  value={
-                    form.media_url
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    const url =
-                      event.target
-                        .value;
-
-                    setForm({
-                      ...form,
-                      media_url:
-                        url,
-                    });
-                  }}
-                  onBlur={() => {
-                    if (
-                      form.media_url.trim()
-                    ) {
-                      detectUrlDimensions(
-                        form.media_url.trim(),
-                        form.media_type
-                      );
-                    }
-                  }}
-                  placeholder={
-                    form.media_type ===
-                    "website"
-                      ? "https://example.com"
-                      : "https://..."
-                  }
-                />
-              </label>
-
-              <label className="full-field">
-                Destination URL
-
-                <input
-                  type="url"
-                  value={
-                    form.destination_url
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setForm({
-                      ...form,
-                      destination_url:
-                        event.target
-                          .value,
-                    })
-                  }
-                  placeholder="https://instagram.com/..."
-                />
-              </label>
-            </div>
-
-            <div
-              style={{
-                display:
-                  "flex",
-                flexWrap:
-                  "wrap",
-                gap: 10,
-                marginTop:
-                  16,
-              }}
-            >
-              <div
-                style={{
-                  padding:
-                    "10px 14px",
-                  borderRadius:
-                    12,
-                  background:
-                    "rgba(255,255,255,.05)",
-                  border:
-                    "1px solid rgba(255,255,255,.08)",
-                  fontSize:
-                    13,
-                }}
-              >
-                Ratio:{" "}
-                <strong>
-                  {form.width &&
-                  form.height
-                    ? `${form.width} × ${form.height}`
-                    : "Auto"}
-                </strong>
-              </div>
-
-              {form.width &&
-                form.height && (
-                  <div
-                    style={{
-                      padding:
-                        "10px 14px",
-                      borderRadius:
-                        12,
-                      background:
-                        "rgba(255,255,255,.05)",
-                      border:
-                        "1px solid rgba(255,255,255,.08)",
-                      fontSize:
-                        13,
-                    }}
-                  >
-                    Aspect:{" "}
-                    <strong>
-                      {getAspectRatio(
-                        form.width,
-                        form.height
+                    {project.width &&
+                      project.height && (
+                        <span>
+                          {project.width} ×{" "}
+                          {project.height}
+                        </span>
                       )}
-                    </strong>
                   </div>
-                )}
-            </div>
 
-            {message && (
-              <div
-                className={
-                  message
-                    .toLowerCase()
-                    .includes(
-                      "success"
-                    ) ||
-                  message ===
-                    "Project deleted."
-                    ? "admin-success"
-                    : "admin-error"
-                }
-                style={{
-                  marginTop:
-                    16,
-                  whiteSpace:
-                    "pre-wrap",
-                }}
-              >
-                {message}
-              </div>
-            )}
-
-            <button
-              className="admin-primary-button save-button"
-              type="submit"
-              disabled={
-                saving ||
-                uploading
-              }
-            >
-              {uploading
-                ? "UPLOADING..."
-                : saving
-                ? "SAVING..."
-                : editingId
-                ? "UPDATE PROJECT ↗"
-                : "ADD PROJECT ↗"}
-            </button>
-          </form>
-        </section>
-
-        <section className="admin-projects">
-          <div className="projects-heading">
-            <div>
-              <span className="admin-kicker">
-                DATABASE
-              </span>
-
-              <h2>
-                Projects
-              </h2>
-            </div>
-
-            <button
-              className="refresh-button"
-              onClick={
-                loadProjects
-              }
-              type="button"
-            >
-              ↻ REFRESH
-            </button>
-          </div>
-
-          {projects.length ===
-          0 ? (
-            <div className="empty-projects">
-              <span>
-                NO PROJECTS YET
-              </span>
-
-              <p>
-                Add your first project
-                above.
-              </p>
-            </div>
-          ) : (
-            <div className="admin-project-list">
-              {projects.map(
-                (project) => (
-                  <article
-                    className="admin-project-card"
-                    key={
-                      project.id
+                  <button
+                    className="delete-button"
+                    onClick={() =>
+                      deleteProject(project)
                     }
+                    title="Delete project"
                   >
-                    <div className="project-preview">
-                      {project.media_type ===
-                        "image" ? (
-                        <img
-                          src={
-                            project.media_url ||
-                            ""
-                          }
-                          alt={
-                            project.title ||
-                            "FUNK project"
-                          }
-                        />
-                      ) : project.media_type ===
-                        "video" ? (
-                        <video
-                          src={
-                            project.media_url ||
-                            undefined
-                          }
-                          muted
-                          playsInline
-                          controls
-                        />
-                      ) : (
-                        <div className="website-preview">
-                          <span>
-                            ↗
-                          </span>
-                          WEBSITE
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="project-info">
-                      <div className="project-meta">
-                        <span>
-                          #
-                          {
-                            project.id
-                          }
-                        </span>
-
-                        <span>
-                          {
-                            project.media_type
-                          }
-                        </span>
-                      </div>
-
-                      <h3>
-                        {
-                          project.title
-                        }
-                      </h3>
-
-                      <div className="project-size">
-                        {project.width ||
-                          "Auto"}{" "}
-                        ×{" "}
-                        {project.height ||
-                          "Auto"}
-                      </div>
-
-                      <div className="project-actions">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            editProject(
-                              project
-                            )
-                          }
-                        >
-                          EDIT
-                        </button>
-
-                        <button
-                          type="button"
-                          className="delete-action"
-                          onClick={() =>
-                            deleteProject(
-                              project.id
-                            )
-                          }
-                        >
-                          DELETE
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                )
-              )}
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
   );
-}
-
-function getAspectRatio(
-  width: number,
-  height: number
-): string {
-  if (
-    !width ||
-    !height
-  ) {
-    return "Auto";
-  }
-
-  const ratio =
-    width / height;
-
-  const commonRatios = [
-    {
-      value: 16 / 9,
-      label: "16:9",
-    },
-    {
-      value: 9 / 16,
-      label: "9:16",
-    },
-    {
-      value: 1,
-      label: "1:1",
-    },
-    {
-      value: 4 / 5,
-      label: "4:5",
-    },
-    {
-      value: 5 / 4,
-      label: "5:4",
-    },
-    {
-      value: 4 / 3,
-      label: "4:3",
-    },
-    {
-      value: 3 / 4,
-      label: "3:4",
-    },
-    {
-      value: 3 / 2,
-      label: "3:2",
-    },
-    {
-      value: 2 / 3,
-      label: "2:3",
-    },
-  ];
-
-  const match =
-    commonRatios.find(
-      (item) =>
-        Math.abs(
-          ratio - item.value
-        ) < 0.02
-    );
-
-  if (match) {
-    return match.label;
-  }
-
-  return ratio.toFixed(2);
 }
