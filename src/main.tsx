@@ -21,6 +21,7 @@ import {
   MapPin,
 } from 'lucide-react';
 
+import { supabase } from './lib/supabase';
 import './index.css';
 
 
@@ -30,11 +31,6 @@ import './index.css';
 
 const heroVideo = '/assets/luffy-hero.mp4';
 const heroPoster = '/assets/luffy-poster.jpg';
-
-
-// ============================================================
-// GALLERY / PROJECT IMAGES
-// ============================================================
 
 const projectGalleryImages = [
   '/assets/gallery/discord.png',
@@ -46,10 +42,35 @@ const projectGalleryImages = [
 ];
 
 
-// IMPORTANT:
-// These are the images that will actually appear in PROJECTS.
-// Previously the project section was using no-img.webp instead.
-const projectImages = projectGalleryImages;
+// ============================================================
+// PROJECT TYPE
+// ============================================================
+
+type Project = {
+  id: number;
+  title: string;
+  media_url: string | null;
+  media_type: string | null;
+  destination_url: string | null;
+};
+
+
+// ============================================================
+// FALLBACK PROJECT IMAGES
+// ============================================================
+
+const fallbackProjectImages = [
+  '/assets/gallery/discord.png',
+  '/assets/gallery/youtube.png',
+  '/assets/gallery/adobe.png',
+  '/assets/gallery/instagram.png',
+  '/assets/gallery/davinci.png',
+  '/assets/gallery/after-effects.png',
+  '/assets/gallery/discord.png',
+  '/assets/gallery/youtube.png',
+  '/assets/gallery/adobe.png',
+  '/assets/gallery/instagram.png',
+];
 
 
 // ============================================================
@@ -147,7 +168,6 @@ function ContactButton({
       "
     >
       Contact Me
-
       <ArrowUpRight
         size={16}
         strokeWidth={2.2}
@@ -212,13 +232,13 @@ function Magnet({
     window.addEventListener(
       'mousemove',
       move,
-      { passive: true }
+      { passive: true },
     );
 
     return () => {
       window.removeEventListener(
         'mousemove',
-        move
+        move,
       );
     };
   }, [padding, strength]);
@@ -254,7 +274,6 @@ function HeroSection() {
         bg-[#0C0C0C]
       "
     >
-      {/* HERO VIDEO */}
       <video
         className="
           absolute
@@ -278,8 +297,6 @@ function HeroSection() {
         />
       </video>
 
-
-      {/* RADIAL OVERLAY */}
       <div
         className="
           absolute
@@ -288,8 +305,6 @@ function HeroSection() {
         "
       />
 
-
-      {/* TOP/BOTTOM GRADIENT */}
       <div
         className="
           absolute
@@ -301,8 +316,6 @@ function HeroSection() {
         "
       />
 
-
-      {/* NAVIGATION */}
       <FadeIn
         className="
           relative
@@ -363,8 +376,6 @@ function HeroSection() {
         </nav>
       </FadeIn>
 
-
-      {/* HERO TITLE */}
       <div
         className="
           relative
@@ -434,14 +445,12 @@ function HeroSection() {
                 >
                   {char === ' ' ? '\u00A0' : char}
                 </motion.span>
-              )
+              ),
             )}
           </motion.h1>
         </FadeIn>
       </div>
 
-
-      {/* HERO FOOTER */}
       <div
         className="
           relative
@@ -490,8 +499,7 @@ function HeroSection() {
               "
             >
               VFX, car edits ( speed ramp ),
-              cinematic cuts, AMV & motion
-              graphics
+              cinematic cuts, AMV & motion graphics
             </p>
 
             <p
@@ -507,12 +515,10 @@ function HeroSection() {
               "
             >
               <MapPin size={14} />
-
               West Bengal, India
             </p>
           </div>
         </FadeIn>
-
 
         <FadeIn
           delay={0.5}
@@ -548,21 +554,19 @@ function MarqueeRow({
       aria-label="FUNK tools and platforms"
     >
       <div className="marquee-track">
-        {trackItems.map(
-          (src, i) => (
-            <div
-              key={`${src}-${i}`}
-              className="marquee-card"
-            >
-              <img
-                src={src}
-                loading="lazy"
-                alt="FUNK creative software or platform logo"
-                className="marquee-logo"
-              />
-            </div>
-          )
-        )}
+        {trackItems.map((src, i) => (
+          <div
+            key={`${src}-${i}`}
+            className="marquee-card"
+          >
+            <img
+              src={src}
+              loading="lazy"
+              alt="FUNK creative software or platform logo"
+              className="marquee-logo"
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -635,14 +639,15 @@ function AnimatedText({
   const ref =
     useRef<HTMLParagraphElement>(null);
 
-  const { scrollYProgress } =
-    useScroll({
-      target: ref,
-      offset: [
-        'start 0.8',
-        'end 0.2',
-      ],
-    });
+  const {
+    scrollYProgress,
+  } = useScroll({
+    target: ref,
+    offset: [
+      'start 0.8',
+      'end 0.2',
+    ],
+  });
 
   return (
     <p
@@ -658,15 +663,15 @@ function AnimatedText({
       "
     >
       {text.split('').map(
-        (char, index) => (
+        (c, i) => (
           <Char
-            key={index}
-            char={char}
-            index={index}
+            key={i}
+            char={c}
+            index={i}
             total={text.length}
             progress={scrollYProgress}
           />
-        )
+        ),
       )}
     </p>
   );
@@ -687,12 +692,11 @@ function Char({
   const start = index / total;
   const end = (index + 1) / total;
 
-  const opacity =
-    useTransform(
-      progress,
-      [start, end],
-      [0.2, 1]
-    );
+  const opacity = useTransform(
+    progress,
+    [start, end],
+    [0.2, 1],
+  );
 
   const renderedChar =
     char === ' '
@@ -726,10 +730,6 @@ function Char({
   );
 }
 
-
-// ============================================================
-// TOOLS
-// ============================================================
 
 const toolItems = [
   {
@@ -803,11 +803,9 @@ function AboutSection() {
           </div>
         </FadeIn>
 
-
         <AnimatedText
           text={aboutText}
         />
-
 
         <div
           className="
@@ -855,7 +853,7 @@ function AboutSection() {
                   {tool.name}
                 </span>
               </div>
-            )
+            ),
           )}
         </div>
       </div>
@@ -933,7 +931,6 @@ function ServicesSection() {
         </h2>
       </FadeIn>
 
-
       <div className="mx-auto max-w-5xl">
         {services.map(
           ([num, name, desc], i) => (
@@ -997,7 +994,7 @@ function ServicesSection() {
                 </div>
               </div>
             </FadeIn>
-          )
+          ),
         )}
       </div>
     </section>
@@ -1012,14 +1009,19 @@ function ServicesSection() {
 function ProjectImage({
   src,
   index,
+  href,
+  title,
 }: {
   src: string;
   index: number;
+  href?: string | null;
+  title?: string;
 }) {
   const handleImageError = (
-    event: React.SyntheticEvent<HTMLImageElement>
+    event: React.SyntheticEvent<HTMLImageElement>,
   ) => {
-    const img = event.currentTarget;
+    const img =
+      event.currentTarget;
 
     if (
       img.dataset.fallbackApplied ===
@@ -1032,9 +1034,11 @@ function ProjectImage({
       'true';
 
     img.src =
-      '/assets/no-img.webp';
+      fallbackProjectImages[
+        index %
+          fallbackProjectImages.length
+      ];
   };
-
 
   const projectTypes = [
     'VFX',
@@ -1044,10 +1048,13 @@ function ProjectImage({
     'MOTION GRAPHICS',
   ];
 
+  const destination =
+    href ||
+    'https://www.instagram.com/funk.vfx/';
 
   return (
     <motion.a
-      href="https://www.instagram.com/funk.vfx/"
+      href={destination}
       target="_blank"
       rel="noreferrer"
       className="
@@ -1080,11 +1087,13 @@ function ProjectImage({
       <img
         src={src}
         onError={handleImageError}
-        alt={`FUNK project ${index + 1}`}
+        alt={
+          title ||
+          `FUNK project ${index + 1}`
+        }
         loading="lazy"
         className="
           h-full
-          min-h-[220px]
           w-full
           object-cover
           transition-transform
@@ -1094,7 +1103,6 @@ function ProjectImage({
         "
       />
 
-      {/* HOVER OVERLAY */}
       <div
         className="
           absolute
@@ -1110,8 +1118,6 @@ function ProjectImage({
         "
       />
 
-
-      {/* PROJECT LABEL */}
       <div
         className="
           absolute
@@ -1136,12 +1142,10 @@ function ProjectImage({
           "
         >
           FUNK /{' '}
-          {
+          {title ||
             projectTypes[
-              index %
-                projectTypes.length
-            ]
-          }
+              index % projectTypes.length
+            ]}
         </p>
       </div>
     </motion.a>
@@ -1154,6 +1158,104 @@ function ProjectImage({
 // ============================================================
 
 function ProjectsSection() {
+  const [projects, setProjects] =
+    useState<Project[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadProjects() {
+      try {
+        const {
+          data,
+          error,
+        } = await supabase
+          .from('projects')
+          .select(
+            'id,title,media_url,media_type,destination_url',
+          )
+          .order('id', {
+            ascending: true,
+          });
+
+        if (error) {
+          console.error(
+            'Supabase projects error:',
+            error,
+          );
+
+          if (mounted) {
+            setProjects([]);
+          }
+
+          return;
+        }
+
+        if (mounted) {
+          setProjects(
+            (data || []) as Project[],
+          );
+        }
+      } catch (error) {
+        console.error(
+          'Failed to load projects:',
+          error,
+        );
+
+        if (mounted) {
+          setProjects([]);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProjects();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /*
+    We only use Supabase media_url when it looks
+    like an image.
+
+    Your current Supabase row has:
+      media_type = website
+      media_url  = https://funkvfx.vercel.app/
+
+    That is NOT an image URL, so using it in <img>
+    would produce a broken image.
+
+    Until you add real image URLs to Supabase,
+    the local gallery assets are used instead.
+  */
+
+  const displayProjects =
+    projects.length > 0
+      ? projects.slice(0, 10)
+      : Array.from(
+          { length: 10 },
+          (_, index) => ({
+            id: index + 1,
+            title: '',
+            media_url:
+              fallbackProjectImages[
+                index %
+                  fallbackProjectImages.length
+              ],
+            media_type: 'image',
+            destination_url:
+              'https://www.instagram.com/funk.vfx/',
+          }),
+        );
+
   return (
     <section
       id="projects"
@@ -1177,7 +1279,6 @@ function ProjectsSection() {
         md:pt-20
       "
     >
-      {/* TITLE */}
       <div
         className="
           mb-10
@@ -1217,7 +1318,6 @@ function ProjectsSection() {
           </div>
         </FadeIn>
 
-
         <FadeIn delay={0.15}>
           <a
             href="https://www.instagram.com/funk.vfx/"
@@ -1243,43 +1343,70 @@ function ProjectsSection() {
             "
           >
             More on Instagram
-
-            <ArrowUpRight
-              size={15}
-            />
+            <ArrowUpRight size={15} />
           </a>
         </FadeIn>
       </div>
 
-
-      {/* ====================================================
-          ACTUAL PROJECT IMAGES
-          ==================================================== */}
-
       <div
         className="
           mx-auto
-          max-w-[1900px]
           grid
+          max-w-[1900px]
           grid-cols-2
           gap-3
           sm:grid-cols-3
           lg:grid-cols-5
         "
       >
-        {projectImages.map(
-          (src, index) => (
-            <ProjectImage
-              key={`${src}-${index}`}
-              src={src}
-              index={index}
-            />
-          )
+        {displayProjects.map(
+          (project, index) => {
+            const isImage =
+              project.media_type
+                ?.toLowerCase()
+                .includes('image');
+
+            const src =
+              isImage &&
+              project.media_url
+                ? project.media_url
+                : fallbackProjectImages[
+                    index %
+                      fallbackProjectImages.length
+                  ];
+
+            return (
+              <ProjectImage
+                key={`${project.id}-${index}`}
+                src={src}
+                index={index}
+                href={
+                  project.destination_url
+                }
+                title={
+                  project.title
+                }
+              />
+            );
+          },
         )}
       </div>
 
+      {loading && (
+        <div
+          className="
+            mt-5
+            text-center
+            text-[10px]
+            uppercase
+            tracking-[.3em]
+            text-[#D7E2EA]/30
+          "
+        >
+          Loading projects...
+        </div>
+      )}
 
-      {/* MOBILE INSTAGRAM BUTTON */}
       <div
         className="
           mt-10
@@ -1309,17 +1436,9 @@ function ProjectsSection() {
           "
         >
           More on Instagram
-
-          <ArrowUpRight
-            size={15}
-          />
+          <ArrowUpRight size={15} />
         </a>
       </div>
-
-
-      {/* ====================================================
-          CONTACT
-          ==================================================== */}
 
       <div
         id="contact"
@@ -1344,7 +1463,6 @@ function ProjectsSection() {
           creative collaborations
         </p>
 
-
         <div
           className="
             flex
@@ -1359,13 +1477,9 @@ function ProjectsSection() {
             rel="noreferrer"
             className="social-link"
           >
-            <Instagram
-              size={18}
-            />
-
+            <Instagram size={18} />
             Instagram
           </a>
-
 
           <a
             href="https://www.youtube.com/@funk.vfx_yt"
@@ -1373,34 +1487,26 @@ function ProjectsSection() {
             rel="noreferrer"
             className="social-link"
           >
-            <Youtube
-              size={18}
-            />
-
+            <Youtube size={18} />
             YouTube
           </a>
 
-
           <a
             href="mailto:funkvfx@gmail.com"
+            target="_blank"
+            rel="noreferrer"
             className="social-link"
           >
-            <Mail
-              size={18}
-            />
-
+            <Mail size={18} />
             Gmail
           </a>
         </div>
-
 
         <ContactButton
           href="mailto:funkvfx@gmail.com"
         />
       </div>
 
-
-      {/* FOOTER */}
       <footer
         className="
           border-t
@@ -1428,13 +1534,7 @@ function ProjectsSection() {
           Build by HUMBLE ↗
         </a>
 
-        <span
-          className="
-            mt-3
-            block
-            sm:mt-0
-          "
-        >
+        <span className="mt-3 block sm:mt-0">
           © HUMBLE & FUNK
         </span>
       </footer>
@@ -1474,9 +1574,9 @@ function App() {
 // ============================================================
 
 createRoot(
-  document.getElementById('root')!
+  document.getElementById('root')!,
 ).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );
