@@ -458,7 +458,7 @@ const project = {
                     </div>
 
                     <strong>
-                      Drag & drop your media ( ** 50 MB max. ** )
+                      Click to upload media ( Max. file size 50 MB )
                     </strong>
 
                     <span>
