@@ -807,22 +807,13 @@ function ProjectCard({
   project: Project;
   index: number;
 }) {
-  const fallback =
-    getFallbackImage(
-      index,
-    );
+  const fallback = getFallbackImage(index);
 
-  const [
-    imageSrc,
-    setImageSrc,
-  ] = useState(
-    project.media_url ||
-      fallback,
+  const [imageSrc, setImageSrc] = useState(
+    project.media_url || fallback,
   );
 
-  const mediaType =
-    project.media_type ||
-    'image';
+  const mediaType = project.media_type || 'image';
 
   const destination =
     project.destination_url ||
@@ -830,22 +821,29 @@ function ProjectCard({
 
   const title =
     project.title ||
-    projectTypes[
-      index %
-        projectTypes.length
-    ];
+    projectTypes[index % projectTypes.length];
 
-  const handleError =
-    () => {
-      if (
-        imageSrc !==
-        fallback
-      ) {
-        setImageSrc(
-          fallback,
-        );
-      }
-    };
+  /*
+    Use the width + height saved by the Admin panel.
+
+    Example:
+    1920 × 1080 → 16:9
+    1080 × 1920 → 9:16
+    1080 × 1080 → 1:1
+  */
+  const hasDimensions =
+    Number(project.width) > 0 &&
+    Number(project.height) > 0;
+
+  const aspectRatio = hasDimensions
+    ? `${project.width} / ${project.height}`
+    : '16 / 10';
+
+  const handleError = () => {
+    if (imageSrc !== fallback) {
+      setImageSrc(fallback);
+    }
+  };
 
   return (
     <motion.a
@@ -853,6 +851,9 @@ function ProjectCard({
       target="_blank"
       rel="noreferrer"
       className="project-card"
+      style={{
+        aspectRatio,
+      }}
       initial={{
         opacity: 0,
         y: 30,
@@ -866,38 +867,38 @@ function ProjectCard({
         amount: 0.1,
       }}
       transition={{
-        delay:
-          index * 0.04,
+        delay: index * 0.04,
         duration: 0.6,
       }}
     >
-      {mediaType ===
-      'video' ? (
+      {mediaType === 'video' ? (
         <video
-          src={
-            project.media_url ||
-            undefined
-          }
+          src={project.media_url || undefined}
           poster={fallback}
           muted
           loop
           autoPlay
           playsInline
-          onError={() =>
-            undefined
+          preload="metadata"
+          onError={() => undefined}
+        />
+      ) : mediaType === 'website' ? (
+        <img
+          src={imageSrc}
+          onError={handleError}
+          alt={
+            project.title ||
+            `FUNK project ${index + 1}`
           }
+          loading="lazy"
         />
       ) : (
         <img
           src={imageSrc}
-          onError={
-            handleError
-          }
+          onError={handleError}
           alt={
             project.title ||
-            `FUNK project ${
-              index + 1
-            }`
+            `FUNK project ${index + 1}`
           }
           loading="lazy"
         />
@@ -911,20 +912,16 @@ function ProjectCard({
         </span>
       </div>
 
-      {mediaType ===
-        'website' && (
+      {mediaType === 'website' && (
         <div
           style={{
-            position:
-              'absolute',
+            position: 'absolute',
             right: '18px',
             top: '18px',
             zIndex: 5,
           }}
         >
-          <ExternalLink
-            size={18}
-          />
+          <ExternalLink size={18} />
         </div>
       )}
     </motion.a>
