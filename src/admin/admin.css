@@ -845,7 +845,8 @@
 .project-preview {
   position: relative;
 
-  aspect-ratio: 16 / 10;
+  width: 100%;
+  height: auto;
 
   overflow: hidden;
 
@@ -860,6 +861,12 @@
   display: block;
 
   object-fit: cover;
+}
+
+.project-preview img,
+.project-preview video {
+  min-width: 0;
+  min-height: 0;
 }
 
 .media-badge {
