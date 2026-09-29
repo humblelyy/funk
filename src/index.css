@@ -1252,13 +1252,13 @@ button {
     display: none;
   }
 
-  .project-card {
-    flex: 0 0 78vw;
+.project-card {
+  flex: 0 0 78vw;
 
-    height: 230px;
+  height: auto;
 
-    border-radius: 25px;
-  }
+  border-radius: 25px;
+}
 
   .mobile-instagram {
     display: flex;
