@@ -1253,10 +1253,10 @@ button {
   }
 
 .project-card {
-  flex: 0 0 78vw;
-
+  flex: 0 0 auto;
+  width: 78vw;
   height: auto;
-
+  aspect-ratio: auto;
   border-radius: 25px;
 }
 
