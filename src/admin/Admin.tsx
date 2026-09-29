@@ -671,7 +671,16 @@ const project = {
                   className="project-card"
                   key={project.id}
                 >
-                  <div className="project-preview">
+                  <div
+                    className="project-preview"
+                    style={{
+                      aspectRatio:
+                        project.width &&
+                        project.height
+                          ? `${project.width} / ${project.height}`
+                          : "16 / 10",
+                    }}
+                  >
                     {project.media_type ===
                     "video" ? (
                       <video
