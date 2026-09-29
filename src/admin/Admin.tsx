@@ -268,7 +268,7 @@ export default function Admin() {
       title: title.trim(),
       media_type: mediaType,
       media_url: mediaUrl.trim(),
-      redirect_url: redirectUrl.trim(),
+      destination_url: redirectUrl.trim(),
       width: width === "" ? null : Number(width),
       height: height === "" ? null : Number(height),
     };
