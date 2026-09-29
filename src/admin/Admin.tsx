@@ -700,6 +700,17 @@ const project = {
                     <div className="media-badge">
                       {project.media_type}
                     </div>
+
+                    <button
+                      type="button"
+                      className="media-delete-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteProject(project.id);
+                      }}
+                    >
+                      Delete
+                    </button>
                   </div>
 
                   <div className="project-info">
