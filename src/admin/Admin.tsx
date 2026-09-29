@@ -458,7 +458,7 @@ const project = {
                     </div>
 
                     <strong>
-                      Drag & drop your media (50 Mb max.)
+                      Drag & drop your media ( ** 50 MB max. ** )
                     </strong>
 
                     <span>
