@@ -263,15 +263,20 @@ export default function Admin() {
     }
 
     setSaving(true);
+    
+const project = {
+  title: title.trim(),
+  media_type: mediaType,
+  media_url: mediaUrl.trim(),
 
-    const project = {
-      title: title.trim(),
-      media_type: mediaType,
-      media_url: mediaUrl.trim(),
-      destination_url: redirectUrl.trim(),
-      width: width === "" ? null : Number(width),
-      height: height === "" ? null : Number(height),
-    };
+  // Keep both URL columns populated because the existing
+  // Supabase table contains both columns.
+  destination_url: redirectUrl.trim(),
+  redirect_url: redirectUrl.trim(),
+
+  width: width === "" ? null : Number(width),
+  height: height === "" ? null : Number(height),
+};
 
     const { error } = await supabase
       .from("projects")
