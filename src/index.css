@@ -1318,3 +1318,38 @@ button {
   }
 
 }
+
+/* =========================================================
+   FUNK x LUFFY CUSTOM CURSOR
+   Uses the supplied Luffy artwork; native cursors are retained
+   on touch devices and when reduced interaction is preferred.
+========================================================= */
+@media (hover: hover) and (pointer: fine) {
+  html,
+  body,
+  body * {
+    cursor: url('/cursors/luffy-cursor.png') 2 2, auto !important;
+  }
+
+  a,
+  button,
+  [role='button'],
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'],
+  select,
+  summary,
+  .project-card,
+  .social-link,
+  .contact-button,
+  .instagram-button {
+    cursor: url('/cursors/luffy-pointer.png') 2 2, pointer !important;
+  }
+
+  a:active,
+  button:active,
+  [role='button']:active,
+  .project-card:active {
+    filter: brightness(1.12);
+  }
+}
